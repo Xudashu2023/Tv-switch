@@ -52,12 +52,6 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-private val CardColors = listOf(
-    Color(0xFF2196F3), Color(0xFF00BCD4), Color(0xFFFF9800), Color(0xFF9C27B0),
-    Color(0xFF4CAF50), Color(0xFFE91E63), Color(0xFFFFC107), Color(0xFFF44336),
-    Color(0xFF3F51B5), Color(0xFF009688)
-)
-
 @Composable
 fun TvSwitchApp(vm: TvViewModel) {
     Scaffold { padding ->
@@ -99,61 +93,160 @@ fun TvSwitchApp(vm: TvViewModel) {
 }
 
 @Composable
-private fun ColorCard(title: String, desc: String, color: Color, onClick: () -> Unit) {
+private fun ActionRow(title: String, desc: String, onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 4.dp)
+            .padding(vertical = 3.dp)
             .clickable { onClick() },
-        colors = CardDefaults.cardColors(containerColor = color),
-        shape = RoundedCornerShape(16.dp)
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        shape = RoundedCornerShape(12.dp)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(title, color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.Bold)
-            Text(desc, color = Color.White, fontSize = 13.sp)
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(title, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text(desc, fontSize = 12.sp, color = Color.DarkGray)
+            }
+            Text("›", fontSize = 22.sp, color = Color.Gray)
         }
     }
+}
+
+@Composable
+private fun SectionTitle(title: String) {
+    Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Gray,
+        modifier = Modifier.padding(top = 12.dp, bottom = 4.dp))
 }
 
 @Composable
 private fun HomeScreen(vm: TvViewModel) {
     LazyColumn {
-        item { Text(vm.status, fontSize = 14.sp) }
-        item { Spacer(modifier = Modifier.height(8.dp)) }
-        val entries = listOf(
-            Triple("连接", "输入电视 IP，用 ADB 连上电视", Screen.CONNECT),
-            Triple("电视总览", "剩余空间、CPU、内存、温度、负载", Screen.OVERVIEW),
-            Triple("精简", "先预览再禁用自带应用，可撤销", Screen.DEBLOAT),
-            Triple("应用管理", "启用、禁用、卸载自己装的应用", Screen.APPS),
-            Triple("安装应用", "从手机装 APK 到电视", Screen.INSTALL),
-            Triple("换桌面", "换启动器并设为 Home，可恢复", Screen.LAUNCHER),
-            Triple("传文件", "手机与电视互传文件", Screen.FILES),
-            Triple("遥控", "方向键、音量、打字、重启、关屏", Screen.REMOTE),
-            Triple("小工具", "去广告 DNS、动画、清缓存、截图", Screen.TWEAKS),
-            Triple("安全规则", "只禁用不卸载、可撤销、受保护清单", Screen.SAFETY),
-        )
-        items(entries.withIndex().toList()) { (i, e) ->
-            ColorCard(e.first, e.second, CardColors[i % CardColors.size]) { vm.go(e.third) }
+        // 顶部：电视一览卡（Tellyscope 式：先看电视，再看操作）
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFEFF6FF)),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Text(
+                        if (vm.connected) (vm.deviceModel.ifBlank { "已连接的电视" }) else "未连接电视",
+                        fontSize = 20.sp, fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        if (vm.connected) "已连接：${vm.host}:${vm.port}" else "先在“添加电视”里扫一扫或手动添加",
+                        fontSize = 13.sp, color = Color.DarkGray
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row {
+                        Button(onClick = { vm.go(Screen.CONNECT) }) {
+                            Text(if (vm.connected) "换一台电视" else "添加电视")
+                        }
+                        Spacer(modifier = Modifier.padding(4.dp))
+                        if (vm.connected) {
+                            Button(onClick = { vm.go(Screen.OVERVIEW) },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))) {
+                                Text("看电视状态")
+                            }
+                        }
+                    }
+                }
+            }
         }
+        item { SectionTitle("电视") }
+        item { ActionRow("电视总览", "剩余空间、CPU、内存、温度、负载") { vm.go(Screen.OVERVIEW) } }
+        item { ActionRow("遥控", "方向键、音量、打字、重启、关屏") { vm.go(Screen.REMOTE) } }
+        item { SectionTitle("应用") }
+        item { ActionRow("精简", "先预览再禁用自带应用，可撤销") { vm.go(Screen.DEBLOAT) } }
+        item { ActionRow("应用管理", "启用、禁用、卸载自己装的应用") { vm.go(Screen.APPS) } }
+        item { ActionRow("安装应用", "从手机装 APK 到电视") { vm.go(Screen.INSTALL) } }
+        item { SectionTitle("传输与桌面") }
+        item { ActionRow("传文件", "手机与电视互传文件") { vm.go(Screen.FILES) } }
+        item { ActionRow("换桌面", "换启动器并设为 Home，可恢复") { vm.go(Screen.LAUNCHER) } }
+        item { SectionTitle("其他") }
+        item { ActionRow("小工具", "去广告 DNS、动画、清缓存、截图") { vm.go(Screen.TWEAKS) } }
+        item { ActionRow("安全规则", "只禁用不卸载、可撤销、受保护清单") { vm.go(Screen.SAFETY) } }
     }
 }
 
 @Composable
 private fun ConnectScreen(vm: TvViewModel) {
-    Column {
-        Text("连接电视", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-        Text("电视端先开：设置 → 关于 → 连点版本号 7 次 → 开发者选项 → 开启“网络调试”（或“无线调试”）。手机与电视须在同一 Wi-Fi。")
-        Spacer(modifier = Modifier.height(8.dp))
-        OutlinedTextField(value = vm.host, onValueChange = { vm.host = it }, label = { Text("电视 IP，例如 192.168.1.100") }, modifier = Modifier.fillMaxWidth())
-        Spacer(modifier = Modifier.height(8.dp))
-        OutlinedTextField(value = vm.port, onValueChange = { vm.port = it }, label = { Text("端口，网络调试一般是 5555") }, modifier = Modifier.fillMaxWidth())
-        Spacer(modifier = Modifier.height(8.dp))
-        Button(onClick = { vm.connect() }, enabled = !vm.busy) { Text("连接") }
-        Spacer(modifier = Modifier.height(8.dp))
-        Button(onClick = { vm.disconnect() }, colors = ButtonDefaults.buttonColors(containerColor = Color.Gray)) { Text("断开") }
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(vm.status)
-        Text("说明：Android 11+ 无线调试的配对码流程（TLS 配对）在 v1 中尚未实现；请先用网络调试连接，电视弹出“允许调试？”时点允许，并核对上方指纹。", fontSize = 13.sp, color = Color.DarkGray)
+    LazyColumn {
+        item {
+            Text("添加电视", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(8.dp))
+            // 品牌选择：先选品牌，再按该品牌的菜单名去开调试
+            Text("电视品牌", fontWeight = FontWeight.Bold)
+            Row {
+                Button(
+                    onClick = { vm.brand = "海信 VIDDA" },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (vm.brand == "海信 VIDDA") Color(0xFF2196F3) else Color.Gray
+                    )
+                ) { Text("海信 VIDDA") }
+                Spacer(modifier = Modifier.padding(4.dp))
+                Button(
+                    onClick = { vm.brand = "通用 Android TV" },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (vm.brand == "通用 Android TV") Color(0xFF2196F3) else Color.Gray
+                    )
+                ) { Text("通用 Android TV") }
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+            if (vm.brand == "海信 VIDDA") {
+                Text("海信 VIDDA 开启参考（不同固件菜单名略有出入）：设置 → 关于 → 连点“版本号”7 次开开发者选项 → 回到开发者选项 → 开启 ADB 调试与网络调试。手机与电视须在同一 Wi-Fi。", fontSize = 13.sp)
+            } else {
+                Text("通用开启参考：设置 → 关于 → 连点版本号 7 次 → 开发者选项 → 开启网络调试（或无线调试）。手机与电视须在同一 Wi-Fi。", fontSize = 13.sp)
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+            // 自动扫描：同 Wi-Fi 下找 5555 端口已开放的设备
+            Text("同 Wi-Fi 自动扫描", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            Text("只扫本机所在子网，不出局域网；扫到的是“5555 端口已开放”的设备，点连接后 ADB 会再验证是不是电视。", fontSize = 13.sp, color = Color.DarkGray)
+            Spacer(modifier = Modifier.height(8.dp))
+            Row {
+                Button(onClick = { vm.startScan() }, enabled = !vm.scanning && !vm.busy) { Text("开始扫描") }
+                Spacer(modifier = Modifier.padding(4.dp))
+                if (vm.scanning) {
+                    Button(onClick = { vm.stopScan() },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.Gray)) { Text("停止") }
+                }
+            }
+            if (vm.scanSubnet.isNotEmpty()) Text("本机子网：${vm.scanSubnet}", fontSize = 13.sp)
+            if (vm.scanProgress.isNotEmpty()) Text(vm.scanProgress, fontSize = 13.sp)
+            Spacer(modifier = Modifier.height(8.dp))
+            if (!vm.scanning && vm.discovered.isEmpty() && vm.scanProgress.isEmpty()) {
+                Text("还没扫描：点“开始扫描”，VIDDA 开好网络调试后一般几秒内出现。", fontSize = 13.sp, color = Color.DarkGray)
+            }
+        }
+        items(vm.discovered) { tv ->
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(tv.ip, fontWeight = FontWeight.Bold)
+                    Text("端口 ${tv.port} 已开放 · ${vm.brand}", fontSize = 12.sp, color = Color.DarkGray)
+                }
+                Button(onClick = { vm.connectTo(tv) }, enabled = !vm.busy) { Text("连接") }
+            }
+        }
+        item {
+            Spacer(modifier = Modifier.height(12.dp))
+            Text("手动添加", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+            OutlinedTextField(value = vm.host, onValueChange = { vm.host = it }, label = { Text("电视 IP，例如 192.168.1.100") }, modifier = Modifier.fillMaxWidth())
+            Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(value = vm.port, onValueChange = { vm.port = it }, label = { Text("端口，网络调试一般是 5555") }, modifier = Modifier.fillMaxWidth())
+            Spacer(modifier = Modifier.height(8.dp))
+            Button(onClick = { vm.connect() }, enabled = !vm.busy) { Text("连接") }
+            Spacer(modifier = Modifier.height(8.dp))
+            Button(onClick = { vm.disconnect() }, colors = ButtonDefaults.buttonColors(containerColor = Color.Gray)) { Text("断开") }
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(vm.status)
+            Text("说明：Android 11+ 无线调试的配对码流程（TLS 配对）在本版中尚未实现；请先用网络调试连接，电视弹出“允许调试？”时点允许，并核对上方指纹。扫描不到时，先确认 VIDDA 已开网络调试、与手机同一 Wi-Fi，再扫一次或手动添加。", fontSize = 13.sp, color = Color.DarkGray)
+        }
     }
 }
 
@@ -176,6 +269,11 @@ private fun OverviewScreen(vm: TvViewModel) {
 private fun DebloatScreen(vm: TvViewModel) {
     Column {
         Text("精简", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        // 顶部先显示电视型号（Tellyscope 精简页式：型号在上，待禁用列表在下）
+        Text(
+            if (vm.deviceModel.isNotEmpty()) "电视：${vm.deviceModel}" else "未连接时看不到型号：连接后这里会显示电视品牌与型号。",
+            fontSize = 13.sp, color = Color.DarkGray
+        )
         Text("规则：只禁用自带应用，绝不卸载自带应用；操作前逐项确认；本次禁用都可撤销；关键包在受保护清单里，无法禁用。")
         Button(onClick = { vm.refreshPackages() }, enabled = vm.connected && !vm.busy) { Text("扫描电视已装应用") }
         Spacer(modifier = Modifier.height(8.dp))
@@ -253,14 +351,19 @@ private fun RemoteScreen(vm: TvViewModel) {
     var text by remember { mutableStateOf("") }
     Column {
         Text("遥控", fontSize = 20.sp, fontWeight = FontWeight.Bold)
-        Row {
+        // 方向盘：中间是确认，上下左右居中排（Tellyscope 式遥控布局）
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
             Button(onClick = { vm.keyEvent(19, "上") }) { Text("上") }
-            Button(onClick = { vm.keyEvent(20, "下") }) { Text("下") }
+        }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
             Button(onClick = { vm.keyEvent(21, "左") }) { Text("左") }
+            Button(onClick = { vm.keyEvent(23, "确认") }) { Text("确认") }
             Button(onClick = { vm.keyEvent(22, "右") }) { Text("右") }
         }
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
+            Button(onClick = { vm.keyEvent(20, "下") }) { Text("下") }
+        }
         Row {
-            Button(onClick = { vm.keyEvent(23, "确认") }) { Text("确认") }
             Button(onClick = { vm.keyEvent(4, "返回") }) { Text("返回") }
             Button(onClick = { vm.keyEvent(3, "Home") }) { Text("Home") }
             Button(onClick = { vm.keyEvent(82, "菜单") }) { Text("菜单") }
@@ -271,7 +374,10 @@ private fun RemoteScreen(vm: TvViewModel) {
             Button(onClick = { vm.keyEvent(164, "静音") }) { Text("静音") }
         }
         OutlinedTextField(value = text, onValueChange = { text = it }, label = { Text("输入要打到电视上的文字") }, modifier = Modifier.fillMaxWidth())
-        Button(onClick = { vm.sendText(text) }) { Text("发送文字") }
+        Row {
+            Button(onClick = { vm.sendText(text) }) { Text("发送文字") }
+            Button(onClick = { vm.keyEvent(67, "删除") }) { Text("删除") }
+        }
         Button(onClick = { vm.runTweak({ reboot() }, "重启电视") }) { Text("重启电视") }
         Text("关屏：Android 13 及以下可用 input keyevent 223 实现，Android 14+ 系统已限制，界面不提供假按钮。", fontSize = 13.sp, color = Color.DarkGray)
     }
