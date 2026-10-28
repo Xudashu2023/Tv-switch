@@ -124,7 +124,7 @@ private fun SectionTitle(title: String) {
 @Composable
 private fun HomeScreen(vm: TvViewModel) {
     LazyColumn {
-        // 顶部：电视一览卡（Tellyscope 式：先看电视，再看操作）
+        // 电视页：先是电视一览，再是状态指标，再是三个主操作（Tellyscope 电视页的版式）
         item {
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -147,27 +147,64 @@ private fun HomeScreen(vm: TvViewModel) {
                         }
                         Spacer(modifier = Modifier.padding(4.dp))
                         if (vm.connected) {
-                            Button(onClick = { vm.go(Screen.OVERVIEW) },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4CAF50))) {
-                                Text("看电视状态")
+                            Button(onClick = { vm.disconnect() },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color.Gray)) {
+                                Text("断开")
                             }
                         }
                     }
                 }
             }
         }
-        item { SectionTitle("电视") }
-        item { ActionRow("电视总览", "剩余空间、CPU、内存、温度、负载") { vm.go(Screen.OVERVIEW) } }
+        // 状态指标：两行两列，连接后点刷新才有数据，未连接时只显示提示
+        item {
+            SectionTitle("电视状态")
+            if (!vm.connected) {
+                Text("未连接：连接后点“刷新状态”可看到存储、内存、温度、负载。", fontSize = 13.sp, color = Color.DarkGray)
+            } else {
+                Row {
+                    Button(onClick = { vm.refreshOverview() }, enabled = !vm.busy) { Text("刷新状态") }
+                    TextButton(onClick = { vm.go(Screen.OVERVIEW) }) { Text("看完整状态") }
+                }
+                Spacer(modifier = Modifier.height(8.dp))
+                val vitals = listOf("存储", "内存", "电池温度", "负载")
+                for (row in vitals.chunked(2)) {
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        for (key in row) {
+                            val raw = vm.overview[key].orEmpty()
+                            val value = raw.lineSequence().firstOrNull().orEmpty().take(40)
+                            Card(
+                                modifier = Modifier.weight(1f).padding(3.dp),
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Column(modifier = Modifier.padding(12.dp)) {
+                                    Text(key, fontSize = 12.sp, color = Color.Gray)
+                                    Text(if (value.isEmpty()) "—" else value, fontSize = 13.sp)
+                                }
+                            }
+                        }
+                        if (row.size == 1) Spacer(modifier = Modifier.weight(1f))
+                    }
+                }
+            }
+        }
+        // 三个主操作：一行三个等宽按钮
+        item {
+            SectionTitle("常用操作")
+            Row(modifier = Modifier.fillMaxWidth()) {
+                Button(onClick = { vm.go(Screen.INSTALL) }, modifier = Modifier.weight(1f)) { Text("安装") }
+                Spacer(modifier = Modifier.padding(3.dp))
+                Button(onClick = { vm.go(Screen.DEBLOAT) }, modifier = Modifier.weight(1f)) { Text("精简") }
+                Spacer(modifier = Modifier.padding(3.dp))
+                Button(onClick = { vm.go(Screen.FILES) }, modifier = Modifier.weight(1f)) { Text("传文件") }
+            }
+        }
+        item { SectionTitle("更多") }
         item { ActionRow("遥控", "方向键、音量、打字、重启、关屏") { vm.go(Screen.REMOTE) } }
-        item { SectionTitle("应用") }
-        item { ActionRow("精简", "先预览再禁用自带应用，可撤销") { vm.go(Screen.DEBLOAT) } }
         item { ActionRow("应用管理", "启用、禁用、卸载自己装的应用") { vm.go(Screen.APPS) } }
-        item { ActionRow("安装应用", "从手机装 APK 到电视") { vm.go(Screen.INSTALL) } }
-        item { SectionTitle("传输与桌面") }
-        item { ActionRow("传文件", "手机与电视互传文件") { vm.go(Screen.FILES) } }
         item { ActionRow("换桌面", "换启动器并设为 Home，可恢复") { vm.go(Screen.LAUNCHER) } }
-        item { SectionTitle("其他") }
-        item { ActionRow("小工具", "去广告 DNS、动画、清缓存、截图") { vm.go(Screen.TWEAKS) } }
+        item { ActionRow("小工具", "去广告 DNS、动画、清缓存") { vm.go(Screen.TWEAKS) } }
         item { ActionRow("安全规则", "只禁用不卸载、可撤销、受保护清单") { vm.go(Screen.SAFETY) } }
     }
 }
@@ -351,6 +388,14 @@ private fun RemoteScreen(vm: TvViewModel) {
     var text by remember { mutableStateOf("") }
     Column {
         Text("遥控", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        // 顶部菜单：重启与关屏放上面（Tellyscope 遥控页顶部菜单的版式）
+        Row {
+            Button(onClick = { vm.runTweak({ reboot() }, "重启电视") }) { Text("重启") }
+            Spacer(modifier = Modifier.padding(4.dp))
+            Button(onClick = { vm.keyEvent(223, "关屏") },
+                colors = ButtonDefaults.buttonColors(containerColor = Color.Gray)) { Text("关屏") }
+        }
+        Text("关屏：Android 13 及以下可用，Android 14+ 系统已限制。", fontSize = 12.sp, color = Color.DarkGray)
         // 方向盘：中间是确认，上下左右居中排（Tellyscope 式遥控布局）
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
             Button(onClick = { vm.keyEvent(19, "上") }) { Text("上") }
@@ -378,8 +423,7 @@ private fun RemoteScreen(vm: TvViewModel) {
             Button(onClick = { vm.sendText(text) }) { Text("发送文字") }
             Button(onClick = { vm.keyEvent(67, "删除") }) { Text("删除") }
         }
-        Button(onClick = { vm.runTweak({ reboot() }, "重启电视") }) { Text("重启电视") }
-        Text("关屏：Android 13 及以下可用 input keyevent 223 实现，Android 14+ 系统已限制，界面不提供假按钮。", fontSize = 13.sp, color = Color.DarkGray)
+        Text("常用应用 Dock：本版暂未接线，下一版从电视已装的第三方应用里取前 4 个做快捷启动，不做假按钮。", fontSize = 13.sp, color = Color.DarkGray)
     }
 }
 
@@ -388,11 +432,25 @@ private fun TweaksScreen(vm: TvViewModel) {
     var dns by remember { mutableStateOf("") }
     Column {
         Text("小工具", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        // 桌面卡在最上（Tellyscope 小工具页的版式：先是桌面卡，再是 DNS、动画、缓存）
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = Color(0xFFEFF6FF)),
+            shape = RoundedCornerShape(12.dp)
+        ) {
+            Column(modifier = Modifier.padding(14.dp)) {
+                Text("桌面", fontWeight = FontWeight.Bold)
+                Text("当前桌面：本版不猜测，连接后去“换桌面”里确认已装的启动器再设为 Home。", fontSize = 13.sp, color = Color.DarkGray)
+                Button(onClick = { vm.go(Screen.LAUNCHER) }) { Text("换个桌面") }
+            }
+        }
+        Spacer(modifier = Modifier.height(8.dp))
         OutlinedTextField(value = dns, onValueChange = { dns = it }, label = { Text("Private DNS 主机名，留空即关闭") }, modifier = Modifier.fillMaxWidth())
         Button(onClick = { vm.runTweak({ setPrivateDns(dns) }, "Private DNS") }) { Text("应用 Private DNS") }
         Button(onClick = { vm.runTweak({ setAnimationScale("0.5") }, "加快动画") }) { Text("加快动画（0.5 倍）") }
         Button(onClick = { vm.runTweak({ setAnimationScale("1.0") }, "恢复动画") }) { Text("恢复动画（1.0 倍）") }
         Button(onClick = { vm.runTweak({ clearCaches() }, "清缓存") }) { Text("清缓存") }
+        Text("截图：本版暂未接线，不提供假按钮。", fontSize = 13.sp, color = Color.DarkGray)
     }
 }
 
